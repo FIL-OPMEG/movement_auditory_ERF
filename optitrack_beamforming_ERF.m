@@ -233,7 +233,6 @@ cfg             = [];
 avg_VE      	= ft_timelockanalysis([],VE_A1);
 
 %% Plot
-
 cfg = [];
 cfg.channel = avg_VE.label;
 cfg.parameter = 'avg';

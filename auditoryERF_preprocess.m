@@ -105,10 +105,10 @@ if run_num == 3
     xlabel('Time (s)','FontSize',16);
     print('opti_pos','-dpng','-r300');
     
-    figure;
-    plot(opti_data.time,opti_data.rigidbodies.data(:,8),'LineWidth',2);
-    ylabel('Mean Marker Error');
-    xlabel('Time (s)');
+%     figure;
+%     plot(opti_data.time,opti_data.rigidbodies.data(:,8),'LineWidth',2);
+%     ylabel('Mean Marker Error');
+%     xlabel('Time (s)');
     
     %% Sync up opti-track and rawData
     [MovementDataOut, OPMdataOut] = syncOptitrackAndOPMdata(opti_data,...
@@ -247,6 +247,14 @@ ft_databrowser(cfg,data_out_reg);
 %% MFC
 [data_out_mfc, M, chan_inds] = ft_denoise_mfc(data_out_reg);
 
+%% Plot data
+cfg             = [];
+cfg.blocksize   = 400;
+%cfg.channel     = vertcat(ft_channelselection_opm('MEG',rawData));
+cfg.viewmode    = 'butterfly';
+cfg.colorgroups = 'allblack';
+ft_databrowser(cfg,data_out_reg);
+
 %% Spectral Interpolation
 cfg                     = [];
 cfg.channel             = 'all';
@@ -285,80 +293,6 @@ arft            = ft_databrowser(cfg,data_out_si_lp_hp);
 %% Turn the highlighted data into nans
 arft.artfctdef.reject          = 'nan';
 data_out_si_lp_hp_arft = ft_rejectartifact(arft, data_out_si_lp_hp);
-
-%% Let's replot the opti-data with when we chose to remove the data
-if run_num == 3
-log_array = ~isnan(data_out_si_lp_hp_arft.trial{1}(1,:));
-save log_array log_array
-
-figure;
-set(gcf,'Position',[1 1 1200 900]);
-subplot(4,1,1);
-m = MovementDataOut.rigidbodies.data(:,1);
-m(log_array) = NaN;
-plot(MovementDataOut.time,MovementDataOut.rigidbodies.data(:,1),'k','LineWidth',2); hold on;
-plot(MovementDataOut.time,m,'r','LineWidth',2);
-%title('Rigid Body Rotation X','FontSize',20);
-ylabel('q^x','FontSize',20);
-set(gca,'FontSize',12);
-subplot(4,1,2);
-m = MovementDataOut.rigidbodies.data(:,2);
-m(log_array) = NaN;
-plot(MovementDataOut.time,MovementDataOut.rigidbodies.data(:,2),'k','LineWidth',2); hold on;
-plot(MovementDataOut.time,m,'r','LineWidth',2);
-ylabel('q^y','FontSize',20);
-%title('Rigid Body Rotation Y','FontSize',20);
-set(gca,'FontSize',12);
-subplot(4,1,3);
-m = MovementDataOut.rigidbodies.data(:,3);
-m(log_array) = NaN;
-plot(MovementDataOut.time,MovementDataOut.rigidbodies.data(:,3),'k','LineWidth',2); hold on;
-plot(MovementDataOut.time,m,'r','LineWidth',2);
-%title('Rigid Body Rotation Z','FontSize',20);
-ylabel('q^z','FontSize',20);
-set(gca,'FontSize',12);
-subplot(4,1,4);
-m = MovementDataOut.rigidbodies.data(:,4);
-m(log_array) = NaN;
-plot(MovementDataOut.time,MovementDataOut.rigidbodies.data(:,4),'k','LineWidth',2); hold on;
-plot(MovementDataOut.time,m,'r','LineWidth',2);
-%title('Rigid Body Rotation W','FontSize',20);
-ylabel('q^w','FontSize',20);
-xlabel('Time (s)','FontSize',16);
-set(gca,'FontSize',12);
-print('opti_rot_reject','-dpng','-r300');
-
-
-figure;
-set(gcf,'Position',[1 1 1200 900]);
-subplot(3,1,1);
-m = MovementDataOut.rigidbodies.data(:,5);
-m(log_array) = NaN;
-plot(MovementDataOut.time,MovementDataOut.rigidbodies.data(:,5)/10,'k','LineWidth',2); hold on;
-plot(MovementDataOut.time,m/10,'r','LineWidth',2);
-%title('Rigid Body Position X','FontSize',16);
-ylabel('X (cm)','FontSize',20);
-set(gca,'FontSize',12);
-subplot(3,1,2);
-m = MovementDataOut.rigidbodies.data(:,6);
-m(log_array) = NaN;
-plot(MovementDataOut.time,MovementDataOut.rigidbodies.data(:,6)/10,'k','LineWidth',2); hold on;
-plot(MovementDataOut.time,m/10,'r','LineWidth',2);
-%title('Rigid Body Position Y','FontSize',16);
-ylabel('Y (cm)','FontSize',20);
-set(gca,'FontSize',12);
-subplot(3,1,3);
-m = MovementDataOut.rigidbodies.data(:,7);
-m(log_array) = NaN;
-plot(MovementDataOut.time,MovementDataOut.rigidbodies.data(:,7)/10,'k','LineWidth',2); hold on;
-plot(MovementDataOut.time,m/10,'r','LineWidth',2);
-%title('Rigid Body Position Z','FontSize',16);
-ylabel('Z (cm)','FontSize',20);
-xlabel('Time (s)','FontSize',20);
-set(gca,'FontSize',12);
-print('opti_pos_reject','-dpng','-r300');
-
-end
 
 %% Trial def
 cd('D:\data\20201208_optitrack\sub-NA\ses-001\meg');
@@ -409,6 +343,11 @@ for t = 1:length(data.trial)
         trial2reject(count2) = t;
         count2       = count2+1;
     end
+end
+
+if run_num == 3
+    save trial2keep trial2keep
+    save trial2reject trial2reject
 end
 
 % Pick 438 trials (same as run 3)

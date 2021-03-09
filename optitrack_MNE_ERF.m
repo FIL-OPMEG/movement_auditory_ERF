@@ -20,7 +20,7 @@ addpath(HMM_dir);
 cd(save_dir)
 
 %%
-run_num = 3;
+run_num = 2;
 
 %% Load data
 load(['data_run' num2str(run_num) '.mat']);
@@ -33,41 +33,6 @@ clear sourcemodel
 load('sourcemodel_5mm.mat');
 mri = ft_read_mri('NA.nii');
 mri.coordsys = 'neuromag';
-
-% Prepare Leadfield
-cfg                 = [];
-cfg.method          = 'lcmv';
-cfg.channel         = data.label;
-cfg.grid            = sourcemodel;
-cfg.grid.unit       = 'mm';
-cfg.headmodel       = headmodel;
-cfg.grad            = data.grad;
-cfg.reducerank      = 2%(default = 3 for EEG, 2 for MEG)
-cfg.normalize       = 'yes' ; %Normalise Leadfield: 'yes' for beamformer
-cfg.normalizeparam  = 1;
-lf                  = ft_prepare_leadfield(cfg);
-
-%% Make leadfields symmetric across hemispheres
-lf1 = reshape(lf.leadfield, lf.dim);
-lf2 = flip(lf1,1);
-for k = 1:numel(lf1)
-    if ~isempty(lf1{k})&&~isempty(lf2{k})
-        lf.leadfield{k} = [lf1{k} lf2{k}];
-    else
-        lf.leadfield{k} = [];
-        lf.inside(k)    = false;
-    end
-end
-clear lf1 lf2
-
-% make a figure of the single subject{i} headmodel, and grid positions
-figure; hold on;
-ft_plot_vol(headmodel,  'facecolor', 'cortex', 'edgecolor', 'none');
-alpha 0.5; camlight;
-ft_plot_mesh(lf.pos(lf.inside,:),'vertexsize',1,'vertexcolor','r');
-%ft_plot_sens(rawData_MEG.grad, 'style', 'r*'); view([0,0]);
-ft_plot_sens(data.grad, 'style', 'r*'); view([0,0]);
-
 
 %% Finally let's try some MNE
 cfg         = [];
@@ -82,33 +47,147 @@ leadfield   = ft_prepare_leadfield(cfg);
 cfg                  = [];
 cfg.covariance       = 'yes';
 cfg.vartrllength     = 2;
-cfg.latency          = [0.08 0.12];
+cfg.latency          = 'all';
 cfg.covariancewindow = [0 0.5];
 avg                  = ft_timelockanalysis(cfg,data);
-cfg.latency          = [-0.05 -0.01];
-avg2                  = ft_timelockanalysis(cfg,data);
 
-cfg               = [];
-cfg.method        = 'mne';
-cfg.grid          = leadfield;
-cfg.headmodel     = headmodel;
-cfg.mne.prewhiten = 'yes';
-cfg.mne.lambda    = 3;
-%cfg.mne.scalesourcecov = 'yes';
-source1            = ft_sourceanalysis(cfg,avg);
-source2            = ft_sourceanalysis(cfg,avg2);
+%% Let's MNE
+cfg                     = [];
+cfg.method              = 'mne';
+cfg.sourcemodel         = leadfield;
+cfg.headmodel           = headmodel;
+cfg.mne.prewhiten       = 'yes';
+cfg.mne.lambda          = 3;
+cfg.mne.scalesourcecov  = 'yes';
+sourceall               = ft_sourceanalysis(cfg,avg);
 
+%% Project the dipole moment 
+cfg                 = [];
+cfg.projectmom      = 'yes';
+sourceall           = ft_sourcedescriptives(cfg,sourceall);
+
+%% Replace .pos field with template grid .pos
+[t, r] = ft_version;
+
+load(fullfile(r,'template/sourcemodel/standard_sourcemodel3d5mm.mat'));
+template_grid = sourcemodel;
+clear sourcemodel
+
+sourceall.pos = template_grid.pos;
+
+%%
+addpath(genpath('D:\Github\MQ_MEG_Scripts'));
+sourceR = get_source_pow(data,sourceall,[0.15 0.25]);
+
+%% Interpolate
+spm_brain = ft_read_mri('D:\scripts\fieldtrip-master\template\anatomy\single_subj_T1.nii');       
+cfg              = [];
+cfg.voxelcoord   = 'no';
+cfg.parameter    = 'avg.pow';
+cfg.interpmethod = 'nearest';
+sourceI  = ft_sourceinterpolate(cfg, sourceR,spm_brain);
+
+%%
+% Change the colormap to RdBu
+ft_hastoolbox('brewermap', 1);         % ensure this toolbox is on the path
+cmap = colormap(flipud(brewermap(64,'RdBu'))); % change the colormap
+
+% Plot
+cfg                 = [];
+cfg.funparameter    = 'pow';
+cfg.funcolormap        = cmap;
+cfg.funcolorlim     = 'maxabs';
+%cfg.maskparameter   = 'anat_mask';
+ft_sourceplot(cfg,sourceI);
+
+%% Export to nifti formt and use your favourite MRI software to visualise
+cd(save_dir);
 cfg = [];
-cfg.parameter = 'avg.pow'
-cfg.operation = 'subtract';
-sourceR = ft_math(cfg,source1,source2);
+cfg.filetype = 'nifti';
+cfg.filename = ['MNE_M200_run' num2str(run_num)];
+cfg.parameter = 'pow';
+ft_sourcewrite(cfg,sourceI);
 
+%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Now the VE analysis
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    
+%% Load atlas
+% Get the path and version of Fieldtrip
+[~, r] = ft_version;
+
+atlas_HCPMMP 	= ft_read_atlas(fullfile(HMM_dir,'HCPMMP',...
+    'HCP-MMP1_combined_on_spm_brain.nii'));
+
+fid = fopen(fullfile(HMM_dir,'HCPMMP','HCP-MMP1_combined_on_spm_brain123.txt'));
+labels = textscan(fid,'%s');
+fclose(fid);
+
+atlas_HCPMMP.tissuelabel = labels{1};
+atlas_HCPMMP.tissue            = atlas_HCPMMP.parcellation
+atlas_HCPMMP                   = rmfield(atlas_HCPMMP,'parcellation');
+atlas_HCPMMP.coordsys          = 'mni';
+
+%%
 cfg = [];
-%cfg.latency = 'all';
-cfg.funparameter = 'pow';
-figure;ft_sourceplot(cfg,sourceR);
+cfg.interpmethod = 'nearest';
+cfg.parameter = 'tissue';
+sourcemodel2 = ft_sourceinterpolate(cfg, atlas_HCPMMP, template_grid);
 
+% Find atlas points
+atlas_points = find(sourcemodel2.tissue==10);
 
+VE = [];
+for a = 1:length(atlas_points)
+    VE = vertcat(VE, sourceall.avg.mom{atlas_points(a)});
+end
+
+VE = mean(VE,1);
+figure; plot(sourceall.time,VE);
+title(['MNE_' num2str(run_num)]);
+
+% Save VE
+save(['MNE_VE' num2str(run_num)],'VE');
+
+%% Plot all on the same graph
+figure;
+cols = [0.4275    0.9804    0.3922;0.9804    0.5686    0.3843;
+    0.2824    0.3137    0.9804];
+
+for run_num = 1:3
+    load(['MNE_VE' num2str(run_num) '.mat']);
+    
+    plot(sourceall.time,VE,'LineWidth',2,'Color',cols(run_num,:)); hold on;
+
+end
+xlim([-0.1 0.4]);
+set(gca,'FontSize',18);
+xlabel('Time (s)','FontSize',20);
+ylabel('???','FontSize',20);
+title('');
+%legend({'Sitting';'Standing';'Standing + Moving'},'Location','SouthOutside');
+print('run123_VE_ERF_MNE','-dpng','-r300');
+
+%% Plot
+figure;
+cfg = [];
+cfg.channel = VE_A1.label;
+cfg.parameter = 'avg';
+cfg.baseline = [-0.2 0];
+cfg.showlegend    = 'no';
+cfg.xlim    = [-0.1 0.4];
+cfg.linecolor = [0.4275    0.9804    0.3922;0.9804    0.5686    0.3843;
+    0.2824    0.3137    0.9804];
+cfg.linewidth = 2;
+cfg.ylim = [-2.8e-7 -2.8e-7];
+figure; ft_singleplotER(cfg,avg_VE{1},avg_VE{2},avg_VE{3})
+set(gca,'FontSize',18);
+xlabel('Time (s)','FontSize',20);
+ylabel('???','FontSize',20);
+title('');
+print('run123_VE_ERF','-dpng','-r300');
+legend({'Sitting';'Standing';'Standing + Moving'},'Location','SouthOutside');
 
 
 
