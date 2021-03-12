@@ -1,38 +1,21 @@
-%% Paths (RS)
-fieldtripDir    = 'D:\scripts\fieldtrip-master';
-script_dir      = 'D:\Github\analyse_OPMEG';
-data_dir        = 'D:\data\20201208_optitrack';
-save_dir        = 'D:\data\20201208_optitrack';
-mocap_func      = 'D:\scripts\motioncapture_functions';
-HMM_dir         = 'D:\Github\HMM'
-
-% Add Fieldtrip to path
-disp('Adding Fieldtrip and analyse_OPMEG to your MATLAB path');
-addpath(fieldtripDir)
-ft_defaults;
-
-% Add analyse_OPMEG Scripts to path
-addpath(genpath(script_dir));
-addpath(mocap_func);
-addpath(HMM_dir);
-
-% cd to save dir
-cd(save_dir)
-
-%%
-run_num = 3;
+function optitrack_beamforming_ERF(data_dir, save_dir, scannercast_dir, run_num)
+%% Hardcoded for now
+scannercast_dir = 'D:\Github\scannercast\examples\NA';
 
 %% Load data
+cd(save_dir);
+run_num = 1;
 load(['data_run' num2str(run_num) '.mat']);
 
 %% Whole-brain 
 % Prepare leadfield
-cd('D:\Github\scannercast\examples\NA');
+cd(scannercast_dir);
 load('headmodel.mat');
 clear sourcemodel
 load('sourcemodel_5mm.mat');
 mri = ft_read_mri('NA.nii');
 mri.coordsys = 'neuromag';
+cd(save_dir);
 
 % Prepare Leadfield
 cfg                 = [];
@@ -43,44 +26,44 @@ cfg.grid.unit       = 'mm';
 cfg.headmodel       = headmodel;
 cfg.grad            = data.grad;
 cfg.reducerank      = 2%(default = 3 for EEG, 2 for MEG)
-cfg.normalize       = 'yes' ; %Normalise Leadfield: 'yes' for beamformer
+cfg.normalize       = 'no' ; %Normalise Leadfield: 'yes' for beamformer
 cfg.normalizeparam  = 1;
 lf                  = ft_prepare_leadfield(cfg);
 
-%% Make leadfields symmetric across hemispheres
-lf1 = reshape(lf.leadfield, lf.dim);
-lf2 = flip(lf1,1);
-for k = 1:numel(lf1)
-    if ~isempty(lf1{k})&&~isempty(lf2{k})
-        lf.leadfield{k} = [lf1{k} lf2{k}];
-    else
-        lf.leadfield{k} = [];
-        lf.inside(k)    = false;
-    end
-end
-clear lf1 lf2
-
-% make a figure of the single subject{i} headmodel, and grid positions
-figure; hold on;
-ft_plot_vol(headmodel,  'facecolor', 'cortex', 'edgecolor', 'none');
-alpha 0.5; camlight;
-ft_plot_mesh(lf.pos(lf.inside,:),'vertexsize',1,'vertexcolor','r');
-%ft_plot_sens(rawData_MEG.grad, 'style', 'r*'); view([0,0]);
-ft_plot_sens(data.grad, 'style', 'r*'); view([0,0]);
-
-%%
-% the data consists of fewer channels than the precomputed
-% leadfields, the following chunk of code takes care of this
-[a,b] = match_str(data.label, lf.label);
-for k = 1:numel(lf.leadfield)
-    if ~isempty(lf.leadfield{k})
-        tmp = lf.leadfield{k};
-        tmp = tmp(b,:);
-        tmp = tmp-repmat(mean(tmp,1),[size(tmp,1) 1]); % average re-ref
-        lf.leadfield{k} = tmp;
-    end
-end
-lf.label = lf.label(b);
+% %% Make leadfields symmetric across hemispheres
+% lf1 = reshape(lf.leadfield, lf.dim);
+% lf2 = flip(lf1,1);
+% for k = 1:numel(lf1)
+%     if ~isempty(lf1{k})&&~isempty(lf2{k})
+%         lf.leadfield{k} = [lf1{k} lf2{k}];
+%     else
+%         lf.leadfield{k} = [];
+%         lf.inside(k)    = false;
+%     end
+% end
+% clear lf1 lf2
+% 
+% % make a figure of the single subject{i} headmodel, and grid positions
+% figure; hold on;
+% ft_plot_vol(headmodel,  'facecolor', 'cortex', 'edgecolor', 'none');
+% alpha 0.5; camlight;
+% ft_plot_mesh(lf.pos(lf.inside,:),'vertexsize',1,'vertexcolor','r');
+% %ft_plot_sens(rawData_MEG.grad, 'style', 'r*'); view([0,0]);
+% ft_plot_sens(data.grad, 'style', 'r*'); view([0,0]);
+% 
+% %%
+% % the data consists of fewer channels than the precomputed
+% % leadfields, the following chunk of code takes care of this
+% [a,b] = match_str(data.label, lf.label);
+% for k = 1:numel(lf.leadfield)
+%     if ~isempty(lf.leadfield{k})
+%         tmp = lf.leadfield{k};
+%         tmp = tmp(b,:);
+%         tmp = tmp-repmat(mean(tmp,1),[size(tmp,1) 1]); % average re-ref
+%         lf.leadfield{k} = tmp;
+%     end
+% end
+% lf.label = lf.label(b);
 
 %% Compute covariance matrix
 cfg                  = [];
@@ -113,17 +96,15 @@ sourceall              = ft_sourceanalysis(cfg, avg);
 % Replace .pos field with template_grid.pos
 
 [t, r] = ft_version;
-
-load(fullfile(r,'template/sourcemodel/standard_sourcemodel3d5mm.mat'));
-template_grid = sourcemodel;
-clear sourcemodel
+ddd = load(fullfile(r,'template/sourcemodel/standard_sourcemodel3d5mm.mat'));
+template_grid = ddd.sourcemodel;
+clear ddd
 
 sourceall.pos = template_grid.pos;
 
 %%
 % Remove cfg field to save memory
 sourceall = rmfield(sourceall,'cfg');
-
 addpath(genpath('D:\Github\MQ_MEG_Scripts'));
 
 sourceR = get_source_pow(data,sourceall,[0.15 0.25]);
@@ -223,31 +204,44 @@ sourceavg.pos       = template_grid.pos;
 
 % Select only the Early Auditory Cortex Parcel
 cfg             = [];
-cfg.channel     = {'LH_Early_Auditory_Cortex'};
+cfg.channel     = {'RH_Early_Auditory_Cortex'};
 VE_A1  = ft_selectdata(cfg,VE);
 
-save(['VE_A1_run_' num2str(run_num)],'VE_A1');
+%save(['VE_A1_run_' num2str(run_num)],'VE_A1');
 
 %% Perform timelockanalysis
 cfg             = [];
 avg_VE      	= ft_timelockanalysis([],VE_A1);
 
+%%
+epoched_dataset = [];
+
+for i = 1:length(data.trial)
+    epoched_dataset(:,:,i) = VE.trial{1,i};
+end
+
+SE = std(epoched_dataset,[],3)/sqrt(size(epoched_dataset,3));
+avg_all.t_value = avg_VE.avg./SE;
+
+avg_VE = avg_all;
+avg_VE.avg = avg_VE.t_value;
+
 %% Plot
 cfg = [];
 cfg.channel = avg_VE.label;
-cfg.parameter = 'avg';
-cfg.baseline = [-0.2 0];
+cfg.parameter = 't_value';
+cfg.baseline = [-0.1 0];
 cfg.showlegend    = 'yes';
 cfg.xlim    = [-0.1 0.4];
 cfg.linecolor = 'k';
 cfg.linewidth = 2;
-cfg.ylim = [-2.8e-7 -2.8e-7];
+%cfg.ylim = [-2.8e-7 -2.8e-7];
 figure; ft_singleplotER(cfg,avg_VE)
 set(gca,'FontSize',18);
 xlabel('Time (s)','FontSize',20);
-ylabel('???','FontSize',20);
+ylabel('t-value','FontSize',20);
 title('');
-print(['run_' num2str(run_num)],'-dpng','-r300');
+print(['run_' num2str(run_num) '_VE'],'-dpng','-r300');
 
 %% Plot all on the same graph
 
@@ -290,7 +284,7 @@ cfg.nonlinear   = 'yes';
 norm            = ft_volumenormalise([],mri);
 
 % Auditory Cortex
-pos = [-48 -20 4; 48 -20 4];
+pos = [46 -22 8];
 
 % Now we warp the MNI coordinates using the nonlinear warping parameters
 posback         = ft_warp_apply(norm.params,pos,'sn2individual');
@@ -317,11 +311,11 @@ cfg.normalize       = 'yes' ; %Normalise Leadfield: 'yes' for beamformer
 cfg.normalizeparam  = 1;
 lf_2 = ft_prepare_leadfield(cfg);
 
-% Concat the leadfields
-lf_concat = cat(2,lf_2.leadfield{:});
-for k = 1:2
-    lf.leadfield{k} = lf_concat;
-end
+% % Concat the leadfields
+% lf_concat = cat(2,lf_2.leadfield{:});
+% for k = 1:2
+%     lf.leadfield{k} = lf_concat;
+% end
 
 %%  
 cfg                    = [];
@@ -372,50 +366,7 @@ ylabel('???','FontSize',20);
 title('');
 print(['run_' num2str(run_num)],'-dpng','-r300');
 
-
-
-[pks,locs] = findpeaks(abs(avg_VE.avg(1,:)));
-hold on;
-avg_VE.time(locs)
-
-%% Finally let's try some MNE
-cfg         = [];
-cfg.grad    = data.grad;   % sensor information
-cfg.channel = data.label;  % the used channels
-cfg.grid    = sourcemodel;   % source points
-cfg.headmodel = headmodel;   % volume conduction model
-cfg.singleshell.batchsize = 5000; % speeds up the computation
-leadfield   = ft_prepare_leadfield(cfg);
-
-%% Compute covariance matrix
-cfg                  = [];
-cfg.covariance       = 'yes';
-cfg.vartrllength     = 2;
-cfg.latency          = [0.08 0.12];
-cfg.covariancewindow = [0 0.5];
-avg                  = ft_timelockanalysis(cfg,data);
-cfg.latency          = [-0.05 -0.01];
-avg2                  = ft_timelockanalysis(cfg,data);
-
-cfg               = [];
-cfg.method        = 'mne';
-cfg.grid          = leadfield;
-cfg.headmodel     = headmodel;
-cfg.mne.prewhiten = 'yes';
-cfg.mne.lambda    = 3;
-%cfg.mne.scalesourcecov = 'yes';
-source1            = ft_sourceanalysis(cfg,avg);
-source2            = ft_sourceanalysis(cfg,avg2);
-
-cfg = [];
-cfg.parameter = 'avg.pow'
-cfg.operation = 'subtract';
-sourceR = ft_math(cfg,source1,source2);
-
-cfg = [];
-%cfg.latency = 'all';
-cfg.funparameter = 'pow';
-figure;ft_sourceplot(cfg,sourceR);
+end
 
 
 

@@ -11,9 +11,9 @@
 
 fieldtripDir    = 'D:\scripts\fieldtrip-master';
 script_dir      = 'D:\Github\analyse_OPMEG';
-data_dir        = 'D:\data\20201208_optitrack';
-save_dir        = 'D:\data\20201208_optitrack';
 mocap_func      = 'D:\scripts\motioncapture_functions';
+HMM_dir         = 'D:\Github\HMM'
+
 
 % Add Fieldtrip to path
 disp('Adding Fieldtrip and analyse_OPMEG to your MATLAB path');
@@ -23,6 +23,11 @@ ft_defaults;
 % Add analyse_OPMEG Scripts to path
 addpath(genpath(script_dir));
 addpath(mocap_func);
+addpath(HMM_dir);
+
+% Data and save directories:
+data_dir        = 'D:\data\auditory_moving_ERF';
+save_dir        = 'D:\data\auditory_moving_ERF';
 
 % cd to save dir
 cd(save_dir)
