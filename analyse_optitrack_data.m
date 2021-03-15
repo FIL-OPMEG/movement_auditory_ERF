@@ -1,16 +1,11 @@
+function analyse_optitrack_data(MovementDataOut,trl_index,log_array,trial2keep)
 %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % 
 % Script for analysing the optitrack data
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%% Load data
-load('MovementDataOut.mat');
-load('trl_index.mat');
-load('log_array.mat');
-load('trial2keep.mat');
-
+%%
 Fs  = 1000; % Sampling Rate
 
 %%

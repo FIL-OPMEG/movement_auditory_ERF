@@ -75,10 +75,16 @@ cfg.channel     = vertcat(ft_channelselection_opm('MEG',rawData));
 %rawData_MEG     = ft_selectdata(cfg,OPMdataOut);
 rawData_MEG     = ft_selectdata(cfg,rawData);
 
+%% Select the reference data
+cfg             = [];
+cfg.channel     = vertcat(ft_channelselection_opm('MEGREF',rawData));
+%rawData_MEG     = ft_selectdata(cfg,OPMdataOut);
+rawData_MEGREF  = ft_selectdata(cfg,rawData);
+
 %% Regress the optitrack data from the
-ref                 = MovementDataOut.rigidbodies.data(:,1:6);
+ref                 = (MovementDataOut.rigidbodies.data(:,1:6));
 [rawData_MEG_reg]   = regress_motive_OPMdata(rawData_MEG,ref,10);
-%rawData_MEG_reg     = rawData_MEG;
+rawData_MEG_reg     = rawData_MEG;
 
 
 %% Plot data
@@ -127,6 +133,8 @@ cfg.filtord         = 5;
 cfg.hpinstabilityfix = 'reduce';
 %cfg.hpfilttype = 'fir';
 data_out_si_lp_hp     = ft_preprocessing(cfg,data_out_si_lp);
+data_out_si_hp     = ft_preprocessing(cfg,data_out_si);
+
 
 %% Remove DS - channel is bad
 cfg                 = [];
@@ -137,21 +145,13 @@ data_out_si_lp_hp   = ft_selectdata(cfg,data_out_si_lp_hp);
 cfg             = [];
 cfg.blocksize   = 10;
 %cfg.channel     = vertcat(ft_channelselection_opm('MEG',rawData));
-cfg.viewmode    = 'butterfly';
+cfg.viewmode    = 'vertical';
 cfg.colorgroups = 'allblack';
-arft            = ft_databrowser(cfg,data_out_si_lp_hp);
-
+arft            = ft_databrowser(cfg,data_out_si_hp);
 
 %% Turn the highlighted data into nans
 arft.artfctdef.reject          = 'nan';
 data_out_si_lp_hp_arft = ft_rejectartifact(arft, data_out_si_lp_hp);
-
-cfg             = [];
-cfg.blocksize   = 10;
-%cfg.channel     = vertcat(ft_channelselection_opm('MEG',rawData));
-cfg.viewmode    = 'butterfly';
-cfg.colorgroups = 'allblack';
-ft_databrowser(cfg,data_out_si_lp_hp_arft);
 
 %% Trial def
 % Here I am using a custom trial function which looks for triggers on a
@@ -198,9 +198,9 @@ if run_num == 3
     save trial2reject trial2reject
 end
 
-% Pick 438 trials (same as run 3)
-s           = RandStream('mt19937ar','Seed',99);
-trial2keep  = randsample(s,trial2keep,438);
+% % Pick 438 trials (same as run 3)
+% s           = RandStream('mt19937ar','Seed',99);
+% trial2keep  = randsample(s,trial2keep,438);
 
 % % remove bad trials
 cfg                         = [];
@@ -256,7 +256,7 @@ lay_123         = ft_prepare_layout(cfg);
 
 %figure;ft_plot_layout(lay_123)
 
-%%
+%% Select TAN channels
 cfg             = [];
 cfg.channel    = ft_channelselection_opm('TAN',rawData);
 avg_all         = ft_timelockanalysis(cfg,data);
@@ -271,6 +271,7 @@ cfg.parameter   = 'avg';
 cfg.layout      = lay_123;
 cfg.baseline    = [-0.1 0];
 cfg.xlim        = [0.08 0.12];
+cfg.zlim        = [-150 150];
 cfg.linewidth   = 2;
 %cfg.zlim        = [-200 200];
 cfg.showlabels   = 'yes';
@@ -285,7 +286,7 @@ c.Label.String = 'fT';
 print(['M100topo_run' num2str(run_num)],'-dpng','-r300');
 
 cfg.xlim        = [0.15 0.25];
-cfg.zlim        = [-500 500];
+cfg.zlim        = [-100 100];
 figure; set(gcf,'position',[1 1 800 1000]);
 ft_topoplotER(cfg,avg_all); hold on;
 c = colorbar;

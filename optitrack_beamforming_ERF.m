@@ -4,7 +4,7 @@ scannercast_dir = 'D:\Github\scannercast\examples\NA';
 
 %% Load data
 cd(save_dir);
-run_num = 1;
+run_num = 2;
 load(['data_run' num2str(run_num) '.mat']);
 
 %% Whole-brain 
@@ -107,59 +107,67 @@ sourceall.pos = template_grid.pos;
 sourceall = rmfield(sourceall,'cfg');
 addpath(genpath('D:\Github\MQ_MEG_Scripts'));
 
-sourceR = get_source_pow(data,sourceall,[0.15 0.25]);
-%source_pow_pre  = get_source_pow(data,sourceall,[-0.04 -0.02]);
-% % 
-% % source_pow_post.avg.pow = source_pow_post.avg.pow./source_pow_post.avg.noise;
-% % source_pow_pre.avg.pow = source_pow_pre.avg.pow./source_pow_pre.avg.noise;
-% % 
-% cfg = [];
-% cfg.operation = 'subtract';
-% cfg.parameter = 'pow';
-% sourceR = ft_math(cfg,source_pow_post,source_pow_pre);
-
-%% Interpolate
-spm_brain = ft_read_mri('D:\scripts\fieldtrip-master\template\anatomy\single_subj_T1.nii');       
-cfg              = [];
-cfg.voxelcoord   = 'no';
-cfg.parameter    = 'pow';
-cfg.interpmethod = 'nearest';
-sourceI  = ft_sourceinterpolate(cfg, sourceR, spm_brain);
-
 %%
-% Change the colormap to RdBu
-ft_hastoolbox('brewermap', 1);         % ensure this toolbox is on the path
-cmap = colormap(flipud(brewermap(64,'RdBu'))); % change the colormap
+ERF_name = {'M100','M200'};
+ERF_toi  = [0.08 0.12; 0.15 0.25]
 
-% Mask bits outside the brain
-%sourceI.anat_mask = spm_brain_seg.brain .* double(sourceI.anatomy);
-
-% Plot
-cfg                 = [];
-cfg.funparameter    = 'pow';
-cfg.funcolormap        = cmap;
-cfg.funcolorlim     = 'maxabs';
-%cfg.maskparameter   = 'anat_mask';
-ft_sourceplot(cfg,sourceI);
-
-%% Export to nifti formt and use your favourite MRI software to visualise
-cd(save_dir);
-cfg = [];
-cfg.filetype = 'nifti';
-cfg.filename = ['M200_run' num2str(run_num)];
-cfg.parameter = 'pow';
-ft_sourcewrite(cfg,sourceI);
-
+for ERF = 1:length(ERF_name)
     
-    %% Export to connectome workbench (specfic to my computer)
-    try
-        system(['C:\wtcnapps\workbench\bin_windows64\wb_command -volume-to-surface-mapping D:\data\20201208_optitrack\' ...
-            ['run' num2str(run_num) '.nii'] ' D:\scripts\Conte69_atlas-v2.LR.32k_fs_LR.wb\Conte69.L.midthickness.32k_fs_LR.surf.gii D:\data\20201208_optitrack\' ['M200_run' num2str(run_num)] '_LEFT.shape.gii -trilinear'])
-        system(['C:\wtcnapps\workbench\bin_windows64\wb_command -volume-to-surface-mapping D:\data\20201208_optitrack\' ...
-            ['run' num2str(run_num) '.nii'] ' D:\scripts\Conte69_atlas-v2.LR.32k_fs_LR.wb\Conte69.R.midthickness.32k_fs_LR.surf.gii D:\data\20201208_optitrack\' ['M200_run' num2str(run_num)] '_RIGHT.shape.gii -trilinear'])
-    catch
-        disp('Could not convert to gifti format');
-    end
+    sourceR = get_source_pow(data,sourceall,[ERF_toi(ERF,1) ERF_toi(ERF,2)]);
+    %source_pow_pre  = get_source_pow(data,sourceall,[-0.04 -0.02]);
+    % %
+    % % source_pow_post.avg.pow = source_pow_post.avg.pow./source_pow_post.avg.noise;
+    % % source_pow_pre.avg.pow = source_pow_pre.avg.pow./source_pow_pre.avg.noise;
+    % %
+    % cfg = [];
+    % cfg.operation = 'subtract';
+    % cfg.parameter = 'pow';
+    % sourceR = ft_math(cfg,source_pow_post,source_pow_pre);
+    
+    %% Interpolate
+    spm_brain = ft_read_mri('D:\scripts\fieldtrip-master\template\anatomy\single_subj_T1.nii');
+    cfg              = [];
+    cfg.voxelcoord   = 'no';
+    cfg.parameter    = 'pow';
+    cfg.interpmethod = 'nearest';
+    sourceI  = ft_sourceinterpolate(cfg, sourceR, spm_brain);
+    
+    %%
+    % Change the colormap to RdBu
+    ft_hastoolbox('brewermap', 1);         % ensure this toolbox is on the path
+    cmap = colormap(flipud(brewermap(64,'RdBu'))); % change the colormap
+    
+    % Mask bits outside the brain
+    %sourceI.anat_mask = spm_brain_seg.brain .* double(sourceI.anatomy);
+    
+    % Plot
+    cfg                 = [];
+    cfg.funparameter    = 'pow';
+    cfg.funcolormap        = cmap;
+    cfg.funcolorlim     = 'maxabs';
+    %cfg.maskparameter   = 'anat_mask';
+    ft_sourceplot(cfg,sourceI);
+    title([ERF_name{ERF}]);
+    
+    %% Export to nifti formt and use your favourite MRI software to visualise
+    cd(save_dir);
+    cfg = [];
+    cfg.filetype = 'nifti';
+    cfg.filename = [ERF_name{ERF} '_run' num2str(run_num)];
+    cfg.parameter = 'pow';
+    ft_sourcewrite(cfg,sourceI);
+    
+    
+    %     %% Export to connectome workbench (specfic to my computer)
+    %     try
+    %         system(['C:\wtcnapps\workbench\bin_windows64\wb_command -volume-to-surface-mapping D:\data\20201208_optitrack\' ...
+    %             ['run' num2str(run_num) '.nii'] ' D:\scripts\Conte69_atlas-v2.LR.32k_fs_LR.wb\Conte69.L.midthickness.32k_fs_LR.surf.gii D:\data\20201208_optitrack\' ['M200_run' num2str(run_num)] '_LEFT.shape.gii -trilinear'])
+    %         system(['C:\wtcnapps\workbench\bin_windows64\wb_command -volume-to-surface-mapping D:\data\20201208_optitrack\' ...
+    %             ['run' num2str(run_num) '.nii'] ' D:\scripts\Conte69_atlas-v2.LR.32k_fs_LR.wb\Conte69.R.midthickness.32k_fs_LR.surf.gii D:\data\20201208_optitrack\' ['M200_run' num2str(run_num)] '_RIGHT.shape.gii -trilinear'])
+    %     catch
+    %         disp('Could not convert to gifti format');
+    %     end
+end
 
     %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
