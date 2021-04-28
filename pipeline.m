@@ -11,7 +11,7 @@
 
 fieldtripDir    = 'D:\scripts\fieldtrip-master';
 script_dir      = 'D:\Github\analyse_OPMEG';
-mocap_func      = 'D:\scripts\motioncapture_functions';
+mocap_func      = 'D:\Github\optitrack';
 atlas_dir       = 'D:\Github\analyse_OPMEG\atlas\HCPMMP'
 
 % Add Fieldtrip to path
