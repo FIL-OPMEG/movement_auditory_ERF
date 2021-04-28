@@ -1,4 +1,4 @@
-function analyse_optitrack_data(MovementDataOut,trl_index,log_array,trial2keep)
+function analyse_optitrack_data(save_dir)
 %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % 
@@ -9,6 +9,13 @@ function analyse_optitrack_data(MovementDataOut,trl_index,log_array,trial2keep)
 Fs  = 1000; % Sampling Rate
 
 %%
+cd(save_dir);
+disp('Loading data...');
+load('MovementDataOut_run3.mat');
+load('trl_index.mat');
+load('trial2keep.mat');
+
+%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Position Data
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -17,11 +24,13 @@ Fs  = 1000; % Sampling Rate
 pos_data = MovementDataOut.rigidbodies.data(:,4:6)/10; % Convert to cm
 pos_data = pos_data(trl_index(1):trl_index(end)+500,:); % Trim to start of the tones
 
+pos_data = ft_warp_apply([1 0 0 0; 0 0 1 0; 0 1 0 0 ; 0 0 0 1], pos_data);
+
 %% Here we are converting to the MRI coordinate system where:
 % - X = Left-Right
 % - Y = Forward-Back
 % - Z = Up-Down
-pos_data = [pos_data(:,3) pos_data(:,1)*-1 pos_data(:,2)];
+pos_data = [pos_data(:,1) pos_data(:,3)*-1 pos_data(:,2)];
 
 %%
 % Make the first point 0 0 0
@@ -43,16 +52,14 @@ set(gcf,'Position',[1 1 1200 500]);
 
 for c = 1:size(pos_data,2)
     m = pos_data(:,c);
-    %m(log_array,:) = NaN;
     p1 = plot(t,m,'LineWidth',2,'Color',cols(c,:)); hold on;
     p1.Color(4) = 0.7; 
 end
-%plot(t,m,'r','LineWidth',2);
 ylabel(['Distance (cm)'],'FontSize',24);
 set(gca,'FontSize',18);
 xlabel('Time (s)','FontSize',24);
-%legend(coord_name,'Location','EastOutside');
-print('opti_pos_reject','-dpng','-r300');
+legend(coord_name,'Location','EastOutside');
+print('opti_pos_reject','-dsvg','-r300');
 
 %% Get euclidian distance from start point
 dist_from_start = zeros(length(t),1);
@@ -61,7 +68,7 @@ for time = 1:length(t)
     dist_from_start(time) = pdist2(pos_data(1,:),pos_data(time,:));
 end
 
-dist_from_start = pdist2(pos_data(1,:),pos_data(:,:));
+dist_from_start = pdist2(pos_data,pos_data(1,:));
 
 figure;
 set(gcf,'Position',[1 1 1200 600]);
@@ -71,20 +78,28 @@ p1.Color(4) = 0.8;
 set(gca,'FontSize',18);
 ylabel(['Euclidian Distane (cm)'],'FontSize',22);
 xlabel('Time (s)','FontSize',22);
-print('euclidian_distance_from_start','-dpng','-r300');
+print('euclidian_distance_from_start','-dsvg','-r300');
 
 %% Plot some histograms
 
 for c = 1:3
-    figure; h = histfit(pos_data(:,c),50); xlim([-50 50]);
+    figure; h = histfit(pos_data(:,c),50);
+    
     h(1).FaceColor = cols(c,:);
     h(2).Color = [.2 .2 .2];
     set(gca,'FontSize',18);
     xlabel('Distance (cm)','FontSize',22);
-    ylabel('Probability','FontSize',22);
+    ylabel('Frequency','FontSize',22);
     yt = get(gca, 'YTick');
     set(gca,'YTick',linspace(yt(1),yt(end),4));
     yt = get(gca, 'YTick');
+        if c == 2
+        xlim([-100 100]);
+    elseif c == 1
+        xlim([-100 100]);
+    else
+        xlim([-75 25]);
+    end
     norm_vals = round((yt/length(pos_data(:,c))),2);
     xt = get(gca, 'XTick');
     set(gca,'XTick',linspace(xt(1),xt(end),5));
@@ -101,17 +116,41 @@ end
 degXYZ = (MovementDataOut.rigidbodies.data(:,1:3));
 degXYZ = degXYZ(trl_index(1):trl_index(end)+500,:); % Trim to start of the tones
 
+degXYZ = ft_warp_apply([1 0 0 0; 0 0 1 0; 0 1 0 0 ; 0 0 0 1], degXYZ);
+
+
 %% Here we are converting to the MRI coordinate system where:
 % - X = Pitch
 % - Y = Yaw
 % - Z = Roll
 
-degXYZ = [degXYZ(:,2)*-1 degXYZ(:,1)*-1 degXYZ(:,3)*-1];
+degXYZ = [degXYZ(:,1)*-1 degXYZ(:,3)*-1 degXYZ(:,2)];
 
 %%
 % Make the first point 0 0 0
 first_point = repmat(degXYZ(1,:),size(degXYZ,1),1);
+%first_point = repmat(mean(degXYZ),size(degXYZ,1),1);
 degXYZ = degXYZ-first_point; clear first_point
+
+%% Interpolate angles that change abruptly
+
+for ang = 1:3
+    
+    rot2= degXYZ(:,ang);
+    [TF,S1] = ischange(rot2,'Threshold',500);
+    indx = find(TF==1);
+    mm      = movmedian(rot2,1000);
+    
+    
+    for i = 1:length(indx)
+        try
+            rot2(indx(i)-200:indx(i)+200) = mm(indx(i)-200:indx(i)+200);
+        catch
+            rot2(indx(i)-200:end) = mm(indx(i)-200:end);
+        end
+    end
+    degXYZ(:,ang) = rot2;
+end
 
 %% Plot
 cols = [235 210 0; 230 0 99; 23 196 230]/255;
@@ -132,38 +171,39 @@ end
 ylabel(['Degrees (°)'],'FontSize',24);
 set(gca,'FontSize',18);
 xlabel('Time (s)','FontSize',24);
-%legend(coord_name,'Location','EastOutside');
-print('opti_rot_reject','-dpng','-r300');
+legend(coord_name,'Location','EastOutside');
+print('opti_rot_reject','-dsvg','-r300');
 
 %% Polar Histogram
 for c = 1:3
     figure; ax = polaraxes;
     h = polarhistogram(deg2rad(degXYZ(:,c)),50,'Normalization','probability');
-    thetalim([-30 30]);
+    thetalim([-60 60]);
     ax.FontSizeMode = 'manual'
     ax.FontSize = 18
     ax.RAxis.FontSize = 14;
-    ax.ThetaTickLabel = {'-30°','-15°','0°','15°','30°'}
+    ax.ThetaTickLabel = {'-60°','-30°','0°','30°','60°'}
     
     h(1).FaceColor = cols(c,:);
     %h(2).Color = [.2 .2 .2];
-    %xlabel('Degrees (°)','FontSize',22);
-    %     ylabel('Sample Count','FontSize',22);
+%     xlabel('Degrees (°)','FontSize',22);
+%          ylabel('Sample Count','FontSize',22);
     print(['polarhistogram' num2str(c)],'-dpng','-r300');
 end
 
 %% 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Calculate XYZ per trial
+% Calculate Data per trial
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-trl_index = trl_index-trl_index(1);
-trl_index = trl_index(trial2keep);
+trl_index_for_euc = trl_index-trl_index(1);
+trl_index_for_euc(1) = 1;
+%trl_index = trl_index(trial2keep);
 
 keep_cm = [];
 
 % Position
 for k = 1:length(trial2keep)
-    pos_data_t = pos_data(trl_index(k):trl_index(k)+500,:);
+    pos_data_t = pos_data(trl_index_for_euc(k):trl_index_for_euc(k)+500,:);
     for d = 1:3
         distances = pdist2(pos_data_t(:,d), mean(pos_data_t(:,d),2));
         % Find the max distance
@@ -173,7 +213,7 @@ end
 
 % Degrees
 for k = 1:length(trial2keep)
-    deg_data_t = degXYZ(trl_index(k):trl_index(k)+500,:);
+    deg_data_t = degXYZ(trl_index_for_euc(k):trl_index_for_euc(k)+500,:);
     for d = 1:3
         distances = pdist2(deg_data_t(:,d), mean(deg_data_t(:,d),2));
         % Find the max distance
@@ -183,16 +223,17 @@ end
 
 % Euclidian Distance
 for k = 1:length(trial2keep)
-    euclidian_data_t = dist_from_start(trl_index(k):trl_index(k)+500);
-    distances = pdist2(euclidian_data_t', euclidian_data_t');
+    euclidian_data_t = dist_from_start(trl_index_for_euc(k):trl_index_for_euc(k)+500);
+    distances = pdist2(euclidian_data_t, euclidian_data_t);
     % Find the max distance
     keep_cm(k,7) = max(distances(:));
 end
 
-%
+%% Plot Boxplot for Quick View
 figure;
 boxplot(keep_cm)
 
+%% Export to csv file for plotting with Python
 t = array2table(keep_cm,'VariableNames',{'PosX','PosY','PosZ','RotX',...
 'RotY','RotZ','EuclidianDist'});
 writetable(t,'trial_movt.csv','Delimiter',',')
@@ -203,20 +244,22 @@ writetable(t,'trial_movt.csv','Delimiter',',')
 
 
 
-%% Load in NA mesh
-% Load in the MRI
-scannercast_loc = 'D:\Github\scannercast\examples\NA';
-cd(scannercast_loc);
+% %% Load in NA mesh
+% % Load in the MRI
+% scannercast_loc = 'D:\Github\scannercast\examples\NA';
+% cd(scannercast_loc);
+% 
+% mri = ft_read_mri('NA.nii');
+% mri = ft_determine_coordsys(mri,'interactive','no');
+% mri.coordsys = 'neuromag';
 
-mri = ft_read_mri('NA.nii');
-mri = ft_determine_coordsys(mri);
-mri.coordsys = 'neuromag';
+ft_determine_coordsys(mri,'interactive','no');
 
 %% Extract Scalp Surface from the MRI and create a mesh
 cfg                     = [];
 cfg.output              = 'scalp';
 cfg.scalpsmooth         = 5;
-cfg.scalpthreshold      = 0.08; % Change this value if the mesh looks weird
+cfg.scalpthreshold      = 0.09; % Change this value if the mesh looks weird
 scalp                   = ft_volumesegment(cfg, mri);
 
 % Create mesh
@@ -297,19 +340,21 @@ pos_data_ds = downsample(pos_data,100);
 deg_data_ds = downsample(deg2rad(degXYZ),100);
 deg_data_ds2 = downsample((degXYZ),100);
 
+figure; plot(deg_data_ds2);
+
 %% Plot Mesh
 figure;
 set(gcf,'Position',[100 500 1200 600]);
-gif('animate_NA_movement.gif','DelayTime',0.1) 
+gif('test123.gif','frame',gcf,'DelayTime',0.1) 
 subplot(2,2,[1 3]);
 h = ft_plot_mesh(mesh,'EdgeColor','none',...
     'facealpha',1,'facecolor','skin'); camlight;
 view([-130 20]);
 box on;
 ax = gca;
-ax.XLim = [-50 50];
-ax.YLim = [-50 50];
-ax.ZLim = [-50 50];
+ax.XLim = [-100 100];
+ax.YLim = [-100 100];
+ax.ZLim = [-100 100];
 ax.Color = 'w';
 ylabel('Forward-Back (cm)');xlabel('Left-Right (cm)'); zlabel('Up-Down (cm)');
 grid on
@@ -346,7 +391,7 @@ ylabel('Degree (°)');
 % legend({'Pitch','Yaw','Roll'}, 'Location','NorthEast');
 % legend('boxoff')
 
-for k = 1:200
+for k = 1:1000
     subplot(2,2,[1 3]);
     pos_data_ds_k = [pos_data_ds(k,1) pos_data_ds(k,2) pos_data_ds(k,3)];
     deg_data_ds_k = [deg_data_ds(k,1) deg_data_ds(k,2) deg_data_ds(k,3)];
@@ -355,6 +400,7 @@ for k = 1:200
     Zrotate = makehgtform('zrotate', deg_data_ds_k(3));
     Txy     = makehgtform('translate', pos_data_ds_k);
     set(t,'Matrix',Xrotate*Yrotate*Zrotate*Txy);
+    %set(t,'Matrix',Zrotate);    
     %set(t,'Matrix',Xrotate);
     title([num2str(t_ds(k)) 's']);
 
