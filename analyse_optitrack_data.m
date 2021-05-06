@@ -8,12 +8,21 @@ function analyse_optitrack_data(save_dir)
 %%
 Fs  = 1000; % Sampling Rate
 
-%%
+%% Load Data
+% Bit fudged
 cd(save_dir);
 disp('Loading data...');
-load('MovementDataOut_run3.mat');
-load('trl_index.mat');
-load('trial2keep.mat');
+m               = load('MovementDataOut_run3.mat');
+MovementDataOut = m.MovementDataOut;
+clear m
+
+m               = load('trl_index.mat');
+trl_index       = m.trl_index;
+clear m
+
+m               = load('trial2keep.mat');
+trial2keep      = m.trial2keep;
+clear m
 
 %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -21,31 +30,31 @@ load('trial2keep.mat');
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %% Plot the position data
-pos_data = MovementDataOut.rigidbodies.data(:,4:6)/10; % Convert to cm
+pos_data = MovementDataOut.rigidbodies.data(:,4:6); % Convert to cm
 pos_data = pos_data(trl_index(1):trl_index(end)+500,:); % Trim to start of the tones
 
-pos_data = ft_warp_apply([1 0 0 0; 0 0 1 0; 0 1 0 0 ; 0 0 0 1], pos_data);
+% Convert from Y-up to Z-up right-handed coordinate system
+pos_data = ft_warp_apply([1 0 0 0; 0 0 -1 0; 0 1 0 0 ; 0 0 0 1], pos_data);
 
-%% Here we are converting to the MRI coordinate system where:
+pos_data(:,2) = pos_data(:,2).*-1;
+pos_data(:,1) = pos_data(:,1).*-1;
+% Here we are assuming:
+
 % - X = Left-Right
 % - Y = Forward-Back
 % - Z = Up-Down
-pos_data = [pos_data(:,1) pos_data(:,3)*-1 pos_data(:,2)];
 
 %%
 % Make the first point 0 0 0
-first_point = repmat(pos_data(1,:),size(pos_data,1),1);
-pos_data = pos_data-first_point; clear first_point
+pos_data = zero_optitrack_data(pos_data);
 
+% Make time array starting at 0
 t = [0:1:length(pos_data)-1]/Fs;
-%log_array = log_array(trl_index(1):trl_index(end)+500);
-
-%% Generate colors
-cols = [100, 100, 250; 142 185 57; 198 61 61]./255;
 
 %% Plot
 coord = {'X','Y','Z'};
-coord_name = {'X: Right-Left','Y:Forward-Back','Z: Up-Down'};
+cols = [100, 100, 250; 142 185 57; 198 61 61]./255;
+coord_name = {'X: Left-Right','Y:Forward-Back','Z: Up-Down'};
 
 figure;
 set(gcf,'Position',[1 1 1200 500]);
@@ -61,15 +70,10 @@ xlabel('Time (s)','FontSize',24);
 legend(coord_name,'Location','EastOutside');
 print('opti_pos_reject','-dsvg','-r300');
 
-%% Get euclidian distance from start point
-dist_from_start = zeros(length(t),1);
-
-for time = 1:length(t)
-    dist_from_start(time) = pdist2(pos_data(1,:),pos_data(time,:));
-end
-
+%% Get euclidian distance from start point and plot
 dist_from_start = pdist2(pos_data,pos_data(1,:));
 
+% Plot the euclidian distance over time
 figure;
 set(gcf,'Position',[1 1 1200 600]);
 m = dist_from_start(:,:);
@@ -82,29 +86,32 @@ print('euclidian_distance_from_start','-dsvg','-r300');
 
 %% Plot some histograms
 
+% For X, Y, Z...
 for c = 1:3
-    figure; h = histfit(pos_data(:,c),50);
+    % Use make_pos_hist
+    make_pos_hist(pos_data(:,c),cols(c,:));
     
-    h(1).FaceColor = cols(c,:);
-    h(2).Color = [.2 .2 .2];
-    set(gca,'FontSize',18);
-    xlabel('Distance (cm)','FontSize',22);
-    ylabel('Frequency','FontSize',22);
+    % Change the Y ticks
     yt = get(gca, 'YTick');
     set(gca,'YTick',linspace(yt(1),yt(end),4));
     yt = get(gca, 'YTick');
-        if c == 2
+    
+    % Change X lim
+    if c == 2
         xlim([-100 100]);
     elseif c == 1
         xlim([-100 100]);
     else
         xlim([-75 25]);
     end
+    
+    % Change X ticks
     norm_vals = round((yt/length(pos_data(:,c))),2);
     xt = get(gca, 'XTick');
     set(gca,'XTick',linspace(xt(1),xt(end),5));
     set(gca, 'YTick', yt, 'YTickLabel',norm_vals);
-    print(['histogram' num2str(c)],'-dpng','-r300');
+    
+    %print(['histogram' num2str(c)],'-dpng','-r300');
 end
 
 %%
@@ -116,21 +123,18 @@ end
 degXYZ = (MovementDataOut.rigidbodies.data(:,1:3));
 degXYZ = degXYZ(trl_index(1):trl_index(end)+500,:); % Trim to start of the tones
 
-degXYZ = ft_warp_apply([1 0 0 0; 0 0 1 0; 0 1 0 0 ; 0 0 0 1], degXYZ);
-
-
 %% Here we are converting to the MRI coordinate system where:
 % - X = Pitch
-% - Y = Yaw
-% - Z = Roll
+% - Y = Roll
+% - Z = Yaw
+degXYZ = ft_warp_apply([1 0 0 0; 0 0 -1 0; 0 1 0 0 ; 0 0 0 1], degXYZ);
 
-degXYZ = [degXYZ(:,1)*-1 degXYZ(:,3)*-1 degXYZ(:,2)];
+degXYZ(:,2) = degXYZ(:,2).*-1;
+degXYZ(:,1) = degXYZ(:,1).*-1;
 
 %%
 % Make the first point 0 0 0
-first_point = repmat(degXYZ(1,:),size(degXYZ,1),1);
-%first_point = repmat(mean(degXYZ),size(degXYZ,1),1);
-degXYZ = degXYZ-first_point; clear first_point
+degXYZ = zero_optitrack_data(degXYZ);
 
 %% Interpolate angles that change abruptly
 
@@ -152,11 +156,11 @@ for ang = 1:3
     degXYZ(:,ang) = rot2;
 end
 
-%% Plot
+%% Plot the Rotation Data
 cols = [235 210 0; 230 0 99; 23 196 230]/255;
 
 coord = {'X','Y','Z'};
-coord_name = {'X: Pitch','Y: Yaw','Z: Roll'};
+coord_name = {'X: Pitch','Y: Roll','Z: Yaw'};
 
 figure;
 set(gcf,'Position',[1 1 1200 500]);
@@ -177,7 +181,8 @@ print('opti_rot_reject','-dsvg','-r300');
 %% Polar Histogram
 for c = 1:3
     figure; ax = polaraxes;
-    h = polarhistogram(deg2rad(degXYZ(:,c)),50,'Normalization','probability');
+    h = polarhistogram(deg2rad(degXYZ(:,c)),50,...
+        'Normalization','probability');
     thetalim([-60 60]);
     ax.FontSizeMode = 'manual'
     ax.FontSize = 18
@@ -185,9 +190,7 @@ for c = 1:3
     ax.ThetaTickLabel = {'-60°','-30°','0°','30°','60°'}
     
     h(1).FaceColor = cols(c,:);
-    %h(2).Color = [.2 .2 .2];
-%     xlabel('Degrees (°)','FontSize',22);
-%          ylabel('Sample Count','FontSize',22);
+
     print(['polarhistogram' num2str(c)],'-dpng','-r300');
 end
 
@@ -244,95 +247,43 @@ writetable(t,'trial_movt.csv','Delimiter',',')
 
 
 
-% %% Load in NA mesh
-% % Load in the MRI
-% scannercast_loc = 'D:\Github\scannercast\examples\NA';
-% cd(scannercast_loc);
-% 
-% mri = ft_read_mri('NA.nii');
-% mri = ft_determine_coordsys(mri,'interactive','no');
-% mri.coordsys = 'neuromag';
 
-ft_determine_coordsys(mri,'interactive','no');
 
-%% Extract Scalp Surface from the MRI and create a mesh
-cfg                     = [];
-cfg.output              = 'scalp';
-cfg.scalpsmooth         = 5;
-cfg.scalpthreshold      = 0.09; % Change this value if the mesh looks weird
-scalp                   = ft_volumesegment(cfg, mri);
 
-% Create mesh
-cfg                     = [];
-cfg.method              = 'isosurface';
-cfg.numvertices         = 5000;
-mesh                    = ft_prepare_mesh(cfg,scalp);
-mesh                    = ft_convert_units(mesh,'cm');
 
-figure;
-ft_plot_mesh(mesh,'facecolor',[238,206,179]./255,'EdgeColor','none',...
-    'facealpha',0.8,'facecolor','skin'); camlight;
+
+
+
+
+
+%% Make the Mesh
+% This will only work on my computer
+load('D:\tess_head.mat');
+mesh = [];
+mesh.pos = Vertices;
+mesh.tri = Faces;
+mesh.unit = 'm';
+mesh.coordsys = 'mni';
+mesh = ft_convert_units(mesh,'cm');
+
+% Rotate by 90deg to get into MATLAB coordinate system
+ttt = cos(90*(pi/180));
+rrr = sin(90*(pi/180));
+
+trans = [ttt -rrr 0 0;
+    rrr ttt 0 0;
+    0 0 1 0;
+    0 0 0 1];
+
+mesh.pos = ft_warp_apply(trans,mesh.pos);
+
+% Plot
+figure; ft_plot_mesh(mesh); camlight;
 
 %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Let's make an animated plot!
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%% Bit of code to determine XYZ
-figure;
-set(gcf,'Position',[100 500 1200 600]);
-h = ft_plot_mesh(mesh,'EdgeColor','none',...
-    'facealpha',1,'facecolor','skin'); camlight;
-view([130 37]);
-box on;
-ax = gca;
-ax.XLim = [-80 80];
-ax.YLim = [-80 80];
-ax.ZLim = [-80 80]; 
-ax.Color = 'w';
-t = hgtransform('Parent',ax);
-set(h,'Parent',t);
-
-pos_data_ds_k = [0 0 0];
-indx = 1;
-
-for k = 1:1000
-    pos_data_ds_k(indx) = pos_data_ds_k(indx)+0.1;
-    
-    Txy     = makehgtform('translate', pos_data_ds_k);
-    set(t,'Matrix',Txy);
-    drawnow;
-    pause(0.001);
-    
-end
-
-%%
-figure;
-set(gcf,'Position',[100 500 1200 600]);
-h = ft_plot_mesh(mesh,'facecolor',[238,206,179]./255,'EdgeColor','none',...
-    'facealpha',0.8,'facecolor','skin'); camlight;
-view([130 37]);
-box on;
-ax = gca;
-ax.XLim = [-80 80];
-ax.YLim = [-80 80];
-ax.ZLim = [-80 80];
-ax.Color = 'w';
-t = hgtransform('Parent',ax);
-set(h,'Parent',t);
-
-deg_data_ds_k = [0 0 0];
-indx = 3;
-
-for k = 1:1000
-    deg_data_ds_k(indx) = deg_data_ds_k(indx)+0.01;
-    Rrotate = makehgtform('zrotate', deg_data_ds_k(indx));
-    set(t,'Matrix',Rrotate);
-    drawnow;
-    pause(0.001);
-end
-
-
 
 %% Downsample the data to 10Hz
 t_ds = downsample(([0:1:length(pos_data)-1]/Fs),100);
@@ -345,7 +296,7 @@ figure; plot(deg_data_ds2);
 %% Plot Mesh
 figure;
 set(gcf,'Position',[100 500 1200 600]);
-gif('test123.gif','frame',gcf,'DelayTime',0.1) 
+gif('example_movt_video.gif','frame',gcf,'DelayTime',0.1) 
 subplot(2,2,[1 3]);
 h = ft_plot_mesh(mesh,'EdgeColor','none',...
     'facealpha',1,'facecolor','skin'); camlight;
@@ -367,7 +318,7 @@ set(h,'Parent',t)
 
 view_angle = 0;
 subplot(2,2,2);
-cols = [235 123 1; 76 0 230; 23 230 55]./255;
+cols = [100, 100, 250; 142 185 57; 198 61 61]./255;
 rrr = animatedline('Color',cols(1,:),'LineWidth',2);
 bbb = animatedline('Color',cols(2,:),'LineWidth',2);
 ggg = animatedline('Color',cols(3,:),'LineWidth',2);
@@ -391,7 +342,7 @@ ylabel('Degree (°)');
 % legend({'Pitch','Yaw','Roll'}, 'Location','NorthEast');
 % legend('boxoff')
 
-for k = 1:1000
+for k = 1401:1801
     subplot(2,2,[1 3]);
     pos_data_ds_k = [pos_data_ds(k,1) pos_data_ds(k,2) pos_data_ds(k,3)];
     deg_data_ds_k = [deg_data_ds(k,1) deg_data_ds(k,2) deg_data_ds(k,3)];
@@ -424,65 +375,61 @@ for k = 1:1000
 end
 
 
+%% SPARE BITS OF CODE:
 
-
-
-
-%%
-%%
-figure;
-view(3)
-
-[x,y,z] = cylinder([.2 0]);
-h(1) = surface(x,y,z,'FaceColor','red');
-
-t = hgtransform('Parent',ax);
-set(h,'Parent',t)
-
-pos1 = [pos_data_ds(1,1) pos_data_ds(2,1) pos_data_ds(3,1)]; 
-
-for k = 1:length(t_ds)
-    pos_data_ds_k = [pos_data_ds(k,1) pos_data_ds(k,1) pos_data_ds(k,1)];
-    Txy = makehgtform('translate',[pos1-pos_data_ds_k]);
-    set(t,'Matrix',Txy)
-    title([num2str(t_ds(k)) 's']);
-    drawnow;
-    pause(0.001);
-end
-
-pause(1)
-
-%%
-figure;
-gif('animate_NA_movement.gif','DelayTime',0.1) 
-
-hold on;
-view([-63 20]);
-    ylim([-200 200]);
-    xlim([-200 200]);
-    zlim([-200 200]);
-plotcube(L,O,.1,[0.1 0.1 0.1]);   % use function plotcube
-camlight;
-
-v = 0;
-
-h = animatedline('MaximumNumPoints', 30,'Color','r','LineWidth',2);
-for k = 1:length(pos_data_ds(:,3))
-    addpoints(h,pos_data_ds(k,3),pos_data_ds(k,2),pos_data_ds(k,1));
-    title([num2str(t_ds(k)) 's']);
-    drawnow;
-    pause(0.01);
-    view([v 20]);
-    if v == 359.5
-        v = 0;
-    else
-        v = v+0.5;
-    end
-    gif
-end
-
-
-
+% %% Bit of code to determine XYZ
+% figure;
+% set(gcf,'Position',[100 500 1200 600]);
+% h = ft_plot_mesh(mesh,'EdgeColor','none',...
+%     'facealpha',1,'facecolor','skin'); camlight;
+% view([130 37]);
+% box on;
+% ax = gca;
+% ax.XLim = [-80 80];
+% ax.YLim = [-80 80];
+% ax.ZLim = [-80 80]; 
+% ax.Color = 'w';
+% t = hgtransform('Parent',ax);
+% set(h,'Parent',t);
+% 
+% pos_data_ds_k = [0 0 0];
+% indx = 1;
+% 
+% for k = 1:1000
+%     pos_data_ds_k(indx) = pos_data_ds_k(indx)+0.1;
+%     
+%     Txy     = makehgtform('translate', pos_data_ds_k);
+%     set(t,'Matrix',Txy);
+%     drawnow;
+%     pause(0.001);
+%     
+% end
+% 
+% %%
+% figure;
+% set(gcf,'Position',[100 500 1200 600]);
+% h = ft_plot_mesh(mesh,'facecolor',[238,206,179]./255,'EdgeColor','none',...
+%     'facealpha',0.8,'facecolor','skin'); camlight;
+% view([130 37]);
+% box on;
+% ax = gca;
+% ax.XLim = [-80 80];
+% ax.YLim = [-80 80];
+% ax.ZLim = [-80 80];
+% ax.Color = 'w';
+% t = hgtransform('Parent',ax);
+% set(h,'Parent',t);
+% 
+% deg_data_ds_k = [0 0 0];
+% indx = 3;
+% 
+% for k = 1:1000
+%     deg_data_ds_k(indx) = deg_data_ds_k(indx)+0.01;
+%     Rrotate = makehgtform('zrotate', deg_data_ds_k(indx));
+%     set(t,'Matrix',Rrotate);
+%     drawnow;
+%     pause(0.001);
+% end
 
 
 

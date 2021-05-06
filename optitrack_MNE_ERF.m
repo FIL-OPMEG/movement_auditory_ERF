@@ -1,20 +1,10 @@
-function optitrack_MNE_ERF(save_dir,atlas_dir,scannercast_dir, run_num)
+function optitrack_MNE_ERF(save_dir,atlas_dir, run_num, headmodel, sourcemodel)
 %% Hardcoded for now
 scannercast_dir = 'D:\Github\scannercast\examples\NA';
 
 %% Load data
 cd(save_dir);
 load(['data_run' num2str(run_num) '.mat']);
-
-%% Whole-brain 
-% Prepare leadfield
-cd(scannercast_dir);
-load('headmodel.mat');
-clear sourcemodel
-load('sourcemodel_5mm.mat');
-mri = ft_read_mri('mri.nii');
-mri.coordsys = 'neuromag';
-cd(save_dir);
 
 %% Finally let's try some MNE
 cfg         = [];
@@ -145,23 +135,25 @@ title(['MNE_' num2str(run_num)]);
 save(['MNE_VE' num2str(run_num)],'VE');
 
 %% Plot all on the same graph
-figure;
-cols = [0.4275    0.9804    0.3922;0.9804    0.5686    0.3843;
-    0.2824    0.3137    0.9804];
-
-for r = 1:3
-    load(['MNE_VE' num2str(r) '.mat']);
-    plot(sourceall.time,VE,'LineWidth',2,'Color',cols(r,:)); hold on;
-    t = t+1;
+if run_num == 3
+    figure;
+    cols = [0.4275    0.9804    0.3922;0.9804    0.5686    0.3843;
+        0.2824    0.3137    0.9804];
+    
+    for r = 1:3
+        load(['MNE_VE' num2str(r) '.mat']);
+        plot(sourceall.time,VE,'LineWidth',2,'Color',cols(r,:)); hold on;
+        t = t+1;
+    end
+    
+    xlim([-0.1 0.4]);
+    set(gca,'FontSize',18);
+    xlabel('Time (s)','FontSize',20);
+    ylabel('Dipole Moment (A.U.)','FontSize',20);
+    title('');
+    %legend({'Sitting';'Standing';'Standing + Moving'},'Location','SouthOutside');
+    print('run123_VE_ERF_MNE','-dpng','-r300');
 end
-
-xlim([-0.1 0.4]);
-set(gca,'FontSize',18);
-xlabel('Time (s)','FontSize',20);
-ylabel('Dipole Moment (A.U.)','FontSize',20);
-title('');
-%legend({'Sitting';'Standing';'Standing + Moving'},'Location','SouthOutside');
-print('run123_VE_ERF_MNE','-dpng','-r300');
 
 end
 

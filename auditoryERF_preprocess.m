@@ -1,11 +1,9 @@
 function auditoryERF_preprocess(data_dir,save_dir, run_num,...
-    v,motive_data)
-
-%% Hard coded variables (for now)
-subject_name   = 'RS';
+    subject_name,motive_data)
 
 %% Start preprocessing.
 % Read in the raw data using BIDS
+disp('Loading data...');
 cfg             = [];
 cfg.folder      = data_dir;
 cfg.precision   = 'single';
@@ -17,13 +15,7 @@ if run_num == 1
 elseif run_num == 2
     cfg.bids.run    = '002';
 elseif run_num == 3
-    % Data presented in the paper is from Subject 1 run 3, 
-    % and Subject 2 is run 6 (re-run due to technical error)
-    if strcmp(subject_name ,'001')
         cfg.bids.run    = '003';
-    else
-        cfg.bids.run    = '006';
-    end
 end
 rawData         = ft_opm_create(cfg);
 
@@ -32,14 +24,14 @@ cfg                 = [];
 cfg.resamplefs      = 1000;
 [rawData]           = ft_resampledata(cfg, rawData);
 
-% % Plot using ft_databrowser
-cfg             = [];
-cfg.blocksize   = 30;
-%cfg.event       = banana;
-cfg.channel     = vertcat(ft_channelselection_opm('MEG',rawData));
-cfg.viewmode    = 'butterfly';
-cfg.colorgroups   = 'allblack';
-ft_databrowser(cfg,rawData);
+% % % Plot using ft_databrowser
+% cfg             = [];
+% cfg.blocksize   = 30;
+% %cfg.event       = banana;
+% cfg.channel     = vertcat(ft_channelselection_opm('MEG',rawData));
+% cfg.viewmode    = 'butterfly';
+% cfg.colorgroups   = 'allblack';
+% ft_databrowser(cfg,rawData);
 
 %% Plot PSD
 cfg                 = [];
@@ -54,7 +46,11 @@ title('Raw Data');
 
 %% Load in optitrack data
 if run_num == 3
+    % Load in optitrack data
     opti_data = csv2mat_sm(motive_data);
+    
+    % Convert mm to cm
+    opti_data = optitrack_to_cm(opti_data);
     
     % Plot the rotations
     plot_motive_rotation(opti_data,'euler')
@@ -66,11 +62,13 @@ if run_num == 3
     figure;
     plot(opti_data.time,opti_data.rigidbodies.data(:,7),'LineWidth',2);
     ylabel('Mean Marker Error');xlabel('Time (s)');
+    drawnow;
     
     %% Sync up opti-track and rawData
     [MovementDataOut, OPMdataOut] = syncOptitrackAndOPMdata(opti_data,...
         rawData,'TriggerChannelName','FluxZ-A');
     
+    cd(save_dir);
     save(['MovementDataOut_run' num2str(run_num)], 'MovementDataOut')
     
 end
@@ -283,8 +281,6 @@ cfg.projection  = 'polar';
 cfg.channel     =  'all';
 cfg.overlap     = 'keep';
 lay_123         = ft_prepare_layout(cfg);
-
-%figure;ft_plot_layout(lay_123)
 
 %% Select TAN channels
 cfg             = [];

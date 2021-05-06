@@ -1,24 +1,12 @@
-function optitrack_beamforming_ERF(save_dir, atlas_dir, scannercast_dir, run_num)
+function optitrack_beamforming_ERF(save_dir, atlas_dir,...
+    run_num,headmodel,sourcemodel)
+
 %% Hardcoded for now
-
 compute_VE      = 'parcel';
-
-%scannercast_dir = 'D:\Github\scannercast\examples\NA';
 
 %% Load data
 cd(save_dir);
-run_num = 1;
 load(['data_run' num2str(run_num) '.mat']);
-
-%% Whole-brain 
-% Prepare leadfield
-cd(scannercast_dir);
-load('headmodel.mat');
-clear sourcemodel
-load('sourcemodel_5mm.mat');
-mri = ft_read_mri('NA.nii');
-mri.coordsys = 'neuromag';
-cd(save_dir);
 
 % Prepare Leadfield
 cfg                 = [];
@@ -290,7 +278,7 @@ switch compute_VE
             %% Plot
             figure;
             cfg = [];
-            cfg.channel = VE.label;
+            cfg.channel = avg_VE{1}.label;
             cfg.parameter = 't_value';
             cfg.baseline = [-0.1 0];
             cfg.showlegend    = 'no';

@@ -1,19 +1,5 @@
-function investigate_regularisation(save_dir, scannercast_dir, run_num)
-
-%% Hardcoded for now
-scannercast_dir = 'D:\Github\scannercast\examples\RS';
-
+function investigate_regularisation(save_dir, headmodel,sourcemodel)
 %% Load data
-cd(save_dir);
-
-%% Whole-brain 
-% Prepare leadfield
-cd(scannercast_dir);
-load('headmodel.mat');
-clear sourcemodel
-load('sourcemodel_5mm.mat');
-mri = ft_read_mri('RS.nii');
-mri.coordsys = 'neuromag';
 cd(save_dir);
 
 % Prepare Leadfield
