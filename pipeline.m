@@ -93,14 +93,17 @@ optitrack_beamforming_ERF(save_dir, atlas_dir, 3, headmodel, sourcemodel)
 % Subject 2
 save_dir        = fullfile(data_dir,'results','002_results');
 
-% Load pre-computed headmodel and sourcemodel
+% Load MRI pre-computed headmodel and sourcemodel
+mri             = ft_read_mri(fullfile(data_dir,'sub-002','ses-001',...
+    'anat','002.nii')); mri.coordsys = 'neuromag';
 scannercast_dir = fullfile(data_dir,'fieldtrip_sourcespace','sub-002')
 load(fullfile(scannercast_dir,'sub-002_desc-headmodel.mat'));
 load(fullfile(scannercast_dir,'sub-002_desc-sourcemodel_5mm.mat'));
 
-optitrack_beamforming_ERF(save_dir, atlas_dir, 1, headmodel, sourcemodel)
-optitrack_beamforming_ERF(save_dir, atlas_dir, 2, headmodel, sourcemodel)
-optitrack_beamforming_ERF(save_dir, atlas_dir, 3, headmodel, sourcemodel)
+
+optitrack_beamforming_ERF(save_dir, atlas_dir, 1, mri, headmodel, sourcemodel)
+optitrack_beamforming_ERF(save_dir, atlas_dir, 2, mri, headmodel, sourcemodel)
+optitrack_beamforming_ERF(save_dir, atlas_dir, 3, mri, headmodel, sourcemodel)
 
 %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

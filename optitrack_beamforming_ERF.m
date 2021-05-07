@@ -1,8 +1,8 @@
 function optitrack_beamforming_ERF(save_dir, atlas_dir,...
-    run_num,headmodel,sourcemodel)
+    run_num,mri, headmodel,sourcemodel)
 
 %% Hardcoded for now
-compute_VE      = 'parcel';
+compute_VE      = 'single_points';
 
 %% Load data
 cd(save_dir);
@@ -100,7 +100,7 @@ sourceall = rmfield(sourceall,'cfg');
 
 %%
 ERF_name = {'M100'};
-ERF_toi  = [0.15 0.25]
+ERF_toi  = [0.08 0.12]
 
 for ERF = 1:length(ERF_name)
     
@@ -199,7 +199,7 @@ switch compute_VE
         cfg.keeptrials      = 'no';
         cfg.lcmv.keepfilter = 'yes';
         cfg.lcmv.fixedori   = 'yes';
-        cfg.lcmv.lambda     = '1%';
+        cfg.lcmv.lambda     = '0.1%';
         cfg.lcmv.projectnoise  = 'yes';
         sourceavg           = ft_sourceanalysis(cfg, avg);
         sourceavg           = rmfield(sourceavg,'cfg');
