@@ -1,8 +1,7 @@
 # movement_auditory_ERF
 Analysis scripts for the study:
 
-## **Seymour et al., (2021). Using OPMs to measure neural activity in standing, mobile participants
- In preparation.**
+## Seymour et al., (2021). Using OPMs to measure neural activity in standing, mobile participants. In preparation.
 
 ![](./results.png)
 
