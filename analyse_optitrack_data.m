@@ -1,9 +1,7 @@
 function analyse_optitrack_data(save_dir)
 %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% 
-% Script for analysing the optitrack data
-%
+% Script for analysing and plotting the motion capture data
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%
 Fs  = 1000; % Sampling Rate
@@ -111,7 +109,7 @@ for c = 1:3
     set(gca,'XTick',linspace(xt(1),xt(end),5));
     set(gca, 'YTick', yt, 'YTickLabel',norm_vals);
     
-    %print(['histogram' num2str(c)],'-dpng','-r300');
+    print(['histogram' num2str(c)],'-dpng','-r300');
 end
 
 %%

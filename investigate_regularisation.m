@@ -1,4 +1,10 @@
 function investigate_regularisation(save_dir, headmodel,sourcemodel)
+%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Investigate various levels of beamformer regularisation on whole-brain
+% M100 maps and source-level PSD
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 %% Load data
 cd(save_dir);
 

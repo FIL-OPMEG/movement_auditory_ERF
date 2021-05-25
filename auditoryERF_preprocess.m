@@ -15,7 +15,7 @@ if run_num == 1
 elseif run_num == 2
     cfg.bids.run    = '002';
 elseif run_num == 3
-        cfg.bids.run    = '003';
+    cfg.bids.run    = '003';
 end
 rawData         = ft_opm_create(cfg);
 
@@ -128,12 +128,6 @@ cfg.dftbandwidth        = [2 2 2 3 2];
 cfg.dftneighbourwidth   = [1 2 2 2 2];
 data_out_si             = ft_preprocessing(cfg,data_out_mfc);
 
-%% Low Pass Filter
-cfg                 = [];
-cfg.lpfilter        = 'yes';
-cfg.lpfreq          = 40;
-data_out_si_lp      = ft_preprocessing(cfg,data_out_si);
-
 %% HP-filter
 cfg                     = [];
 cfg.hpfilter            = 'yes';
@@ -141,15 +135,20 @@ cfg.hpfreq              = 2;
 cfg.filtord             = 5;
 cfg.hpinstabilityfix    = 'reduce';
 %cfg.hpfilttype = 'fir';
-data_out_si_lp_hp       = ft_preprocessing(cfg,data_out_si_lp);
 data_out_si_hp          = ft_preprocessing(cfg,data_out_si);
+
+%% Low Pass Filter
+cfg                 = [];
+cfg.lpfilter        = 'yes';
+cfg.lpfreq          = 40;
+data_out_si_lp_hp   = ft_preprocessing(cfg,data_out_si_hp);
 
 %% Remove DS (and 17 for 002) - channels are bad
 cfg                 = [];
 if strcmp(subject_name,'001')
-    cfg.channel         = vertcat(data_out_si_lp.label,'-DS-TAN','-DS-RAD');
+    cfg.channel         = vertcat(data_out_si_lp_hp.label,'-DS-TAN','-DS-RAD');
 elseif strcmp(subject_name,'002')
-    cfg.channel         = vertcat(data_out_si_lp.label,'-17-TAN','-17-RAD','-DS-RAD','-DS-TAN');
+    cfg.channel         = vertcat(data_out_si_lp_hp.label,'-17-TAN','-17-RAD','-DS-RAD','-DS-TAN');
 end
 data_out_si_lp_hp   = ft_selectdata(cfg,data_out_si_lp_hp);
 data_out_si_hp      = ft_selectdata(cfg,data_out_si_hp);
@@ -219,18 +218,32 @@ if run_num == 3
     save trl_index trl_index
 end
 
-% Pick 550 trials (same as run 3)
-s           = RandStream('mt19937ar','Seed',99);
-trial2keep  = randsample(s,trial2keep,550);
+% Pick 525 trials (same as run 3)
+try
+    s           = RandStream('mt19937ar','Seed',99);
+    trial2keep  = randsample(s,trial2keep,525);
+catch
+end
 
 % % remove bad trials
-cfg                         = [];
-cfg.trials                  = trial2keep;
-data = ft_selectdata(cfg,data);
+try
+    cfg                         = [];
+    cfg.trials                  = trial2keep;
+    data = ft_selectdata(cfg,data);
+catch
+end
 
 %% Save data
 cd(save_dir);
+disp('Saving data...');
 save(['data_run' num2str(run_num) '.mat'],'data');
+save(['rawData_MEG' num2str(run_num) '.mat'],'rawData_MEG');
+save(['data_out_mfc' num2str(run_num) '.mat'],'data_out_mfc');
+save(['data_out_si_hp' num2str(run_num) '.mat'],'data_out_si_hp');
+if run_num == 3
+    save(['rawData_MEG_reg' num2str(run_num) '.mat'],'rawData_MEG_reg');
+end
+
 
 %% Perform timelockanalysis
 cfg             = [];
@@ -301,7 +314,7 @@ end
 SE = std(epoched_dataset,[],3)/sqrt(size(epoched_dataset,3));
 avg_all.t_value = avg_all.avg./SE;
 
-%% Plot Using ft_multiplot_ER
+%% Plot Using ft_topoplotER
 % Change the colormap to RdBu
 ft_hastoolbox('brewermap', 1);         % ensure this toolbox is on the path
 cmap = colormap(flipud(brewermap(64,'RdBu'))); % change the colormap
@@ -325,17 +338,105 @@ c.FontSize = 20;
 c.Label.String = 't-value';
 print(['M100topo_run' num2str(run_num)],'-dpng','-r300');
 
-%% Plot Sensor Level PSD for low freqs
+%% Save an epoched version of the raw data for later
+% Redefines the filtered data
+cfg     = [];
+data    = ft_redefinetrial(banana,rawData_MEG);
+
+% Remove bad channels
 cfg                 = [];
-cfg.trial_length    = 10;
-cfg.method          = 'tim';
-cfg.foi             = [2 5];
-cfg.plot            = 'yes';
-cfg.plot_legend      = 'no';
-[pow freq]          = ft_opm_psd(cfg,data_out_si_lp_hp);
-print(['PSD_sensor_level' num2str(run_num)],'-dpng','-r300');
+if strcmp(subject_name,'001')
+    cfg.channel         = vertcat(data_out_si_hp.label,'-DS-TAN','-DS-RAD');
+elseif strcmp(subject_name,'002')
+    cfg.channel         = vertcat(data_out_si_hp.label,'-17-TAN','-17-RAD','-DS-RAD','-DS-TAN');
+end
+data   = ft_selectdata(cfg,data);
+
+% Remove trials with any nan data (i.e. has been marked as artefactual)
+trial2keep = [];
+trial2reject = [];
+count        = 1;
+count2       = 1;
+
+for t = 1:length(data.trial)
+    result = sum(isnan(data.trial{t}(:)));
+    if ~result
+        trial2keep(count) = t;
+        count=count+1;
+    else
+        trial2reject(count2) = t;
+        count2       = count2+1;
+    end
+end
+
+% Pick 525 trials (same as run 3)
+try
+    s           = RandStream('mt19937ar','Seed',99);
+    trial2keep  = randsample(s,trial2keep,525);
+catch
+end
+
+% % remove bad trials
+try
+    cfg                         = [];
+    cfg.trials                  = trial2keep;
+    data = ft_selectdata(cfg,data);
+catch
+end
+
+% Save
+save(['data_unprocessed' num2str(run_num) '.mat'],'data');
+
+%% Investigate the effecs of pre-processing for each trial
+% Redefines the filtered data
+
+p{1} = rawData_MEG;
+p{2} = data_out_mfc;
+p{3} = data_out_si_hp;
+if run_num == 3
+    p{4} = rawData_MEG_reg;
+end
+
+max_FC = [];
+
+for i = 1:length(p)
+    disp(i);
+    cfg     = [];
+    data    = ft_redefinetrial(banana,p{i});
+    
+    % Remove bad channels
+    cfg                 = [];
+    if strcmp(subject_name,'001')
+        cfg.channel         = vertcat(data_out_si_hp.label,'-DS-TAN','-DS-RAD');
+    elseif strcmp(subject_name,'002')
+        cfg.channel         = vertcat(data_out_si_hp.label,'-17-TAN','-17-RAD','-DS-RAD','-DS-TAN');
+    end
+    data   = ft_selectdata(cfg,data);
+    
+    % % remove bad trials
+    cfg                         = [];
+    cfg.trials                  = trial2keep;
+    data = ft_selectdata(cfg,data);
+    
+    % Calculate Max Field Change in pT
+    for t = 1:length(data.trial)
+        max_FC(i,t) = max(range(data.trial{t}'))/1000;
+    end
+end
+
+if run_num == 3
+T = array2table(max_FC',...
+    'VariableNames',{'raw','mfc','hpf','reg'});
+else
+    T = array2table(max_FC',...
+    'VariableNames',{'raw','mfc','hpf'});
+end
+
+writetable(T,['maxFC_preprocessing' num2str(run_num) '.csv'],...
+    'Delimiter',',','QuoteStrings',true)
 
 end
+
 
 
 
