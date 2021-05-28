@@ -2,7 +2,7 @@ function optitrack_beamforming_ERF(save_dir, atlas_dir,...
     run_num,mri, headmodel,sourcemodel)
 
 %% Hardcoded for now
-compute_VE      = 'single_points';
+compute_VE      = 'parcel';
 
 %% Load data
 cd(save_dir);
@@ -313,7 +313,7 @@ switch compute_VE
         norm            = ft_volumenormalise([],mri);
         
         % Auditory Cortex
-        pos = [-48 -22 4; 52 -22 8];
+        pos = [-48 -22 4; 48 -22 4];
         
         % Now we warp the MNI coordinates using the nonlinear warping parameters
         posback         = ft_warp_apply(norm.params,pos,'sn2individual');
@@ -357,7 +357,7 @@ switch compute_VE
         cfg.lcmv.fixedori      = 'yes';
         cfg.lcmv.projectnoise  = 'yes';
         %cfg.lcmv.weightnorm    = 'nai';
-        cfg.lcmv.lambda        = '1%';
+        cfg.lcmv.lambda        = '0.1%';
         sourceall              = ft_sourceanalysis(cfg, avg);
         
         % Find filter from Idx point
